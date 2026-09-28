@@ -1,0 +1,13 @@
+[Unit]
+Description=Nissan CONSULT to ELM327 Bluetooth bridge
+After=bluetooth.service consult2elm-agent.service
+Wants=bluetooth.service consult2elm-agent.service
+
+[Service]
+WorkingDirectory=/opt/consult2elm
+ExecStart=/usr/bin/python3 -m consult2elm -c /etc/consult2elm.conf
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Bluetooth pairing agent (fixed PIN) for consult2elm
+After=bluetooth.service
+Requires=bluetooth.service
+
+[Service]
+ExecStart=/usr/bin/bt-agent --capability=NoInputNoOutput --pin=/etc/consult2elm/bt-pins
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

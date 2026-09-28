@@ -1,0 +1,39 @@
+# consult2elm configuration -- installed as /etc/consult2elm.conf
+
+[consult]
+# CONSULT-to-USB adapter (FTDI based cables show up as /dev/ttyUSB0).
+# Use /dev/serial/by-id/... for a name that never changes.
+serial_port = /dev/ttyUSB0
+baudrate = 9600
+# Seconds without a frame before values count as stale ("NO DATA").
+stale_after = 2
+
+[obd]
+# bluetooth = RFCOMM/SPP server for the FMB130, tcp = like a Wi-Fi ELM327 (testing)
+transport = bluetooth
+bt_name = OBDII
+bt_channel = 1
+# Leave "yes" until the FMB130 has paired once, then set "no": the tracker
+# reconnects by MAC address and the Pi stops answering Bluetooth scans.
+bt_discoverable = yes
+bt_setup = yes
+tcp_port = 35000
+
+[power]
+# rpm = only a running engine counts as activity (ignition on, engine off -> sleep)
+# ecu = any answer from the ECU (ignition on) counts as activity
+wake_on = rpm
+# Seconds without activity before the low-power mode starts.
+idle_after = 120
+# In low-power mode, how often the ECU is probed for RPM.
+probe_interval = 5
+# Take CPU cores 1-3 offline and use the powersave governor while sleeping.
+cpu_saving = yes
+# Seconds without activity before halting the Pi (0 = never).
+# Only enable this with a wake-up circuit on GPIO3 or a switched supply (README).
+shutdown_after = 0
+shutdown_command = systemctl poweroff
+
+[general]
+simulate = no
+log_level = INFO
