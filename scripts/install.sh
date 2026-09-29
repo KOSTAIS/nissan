@@ -50,6 +50,20 @@ CONF
 install -m 644 "$SRC/systemd/consult2elm.service" /etc/systemd/system/
 install -m 644 "$SRC/systemd/consult2elm-agent.service" /etc/systemd/system/
 systemctl daemon-reload
+# Stay discoverable/pairable without a 3-minute timeout (the program
+# switches discoverability off itself when bt_discoverable = no).
+MAINCONF=/etc/bluetooth/main.conf
+if [ -f "$MAINCONF" ]; then
+    for kv in "DiscoverableTimeout = 0" "PairableTimeout = 0"; do
+        key="${kv%% *}"
+        if grep -qE "^#?[[:space:]]*$key[[:space:]]*=" "$MAINCONF"; then
+            sed -i -E "s/^#?[[:space:]]*$key[[:space:]]*=.*/$kv/" "$MAINCONF"
+        else
+            sed -i "/^\[General\]/a $kv" "$MAINCONF"
+        fi
+    done
+fi
+
 rfkill unblock bluetooth || true
 systemctl restart bluetooth
 systemctl enable --now consult2elm-agent.service consult2elm.service

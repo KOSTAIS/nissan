@@ -29,6 +29,8 @@ class ElmServer:
         self._tcp_addr = (tcp_host, tcp_port)
         self._sock = None
         self.address = None
+        self.client_count = 0
+        self._count_lock = threading.Lock()
 
     def listen(self) -> None:
         if self._transport == "bluetooth":
@@ -43,6 +45,8 @@ class ElmServer:
         self._sock = sock
         self.address = sock.getsockname()
         log.info("ELM327 emulator listening on %s %s", self._transport, self.address)
+        if self._transport == "bluetooth":
+            log.info("Waiting for an OBD client (tracker or phone app) to connect over Bluetooth")
 
     def serve_forever(self, stop: threading.Event) -> None:
         if self._sock is None:
@@ -61,6 +65,8 @@ class ElmServer:
 
     def _handle(self, conn: socket.socket, peer, stop: threading.Event) -> None:
         log.info("OBD client connected: %s", peer)
+        with self._count_lock:
+            self.client_count += 1
         elm = Elm327(self._store)
         conn.settimeout(1.0)
         try:
@@ -80,4 +86,6 @@ class ElmServer:
             log.info("OBD client %s error: %s", peer, exc)
         finally:
             conn.close()
+            with self._count_lock:
+                self.client_count -= 1
             log.info("OBD client disconnected: %s", peer)

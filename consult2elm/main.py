@@ -84,7 +84,8 @@ def parse_args(argv=None) -> Config:
     ap.add_argument("--port", help="CONSULT serial port, e.g. /dev/ttyUSB0")
     ap.add_argument("--tcp", type=int, metavar="PORT", help="serve ELM327 over TCP instead of Bluetooth")
     ap.add_argument("--simulate", action="store_true", help="use a simulated ECU instead of the adapter")
-    ap.add_argument("-v", "--verbose", action="store_true", help="debug logging")
+    ap.add_argument("-v", "--verbose", "--debug", dest="verbose", action="store_true",
+                    help="debug logging: Bluetooth setup commands, every OBD request/reply, status every 5 s")
     args = ap.parse_args(argv)
 
     cfg = Config.load(args.config)
@@ -97,6 +98,19 @@ def parse_args(argv=None) -> Config:
     if args.verbose:
         cfg.log_level = "DEBUG"
     return cfg
+
+
+def _log_status(store: DataStore, power: PowerManager, server: ElmServer, stop: threading.Event) -> None:
+    """Periodic one-line summary: every 5 s with --debug, otherwise every 60 s."""
+    interval = 5 if log.isEnabledFor(logging.DEBUG) else 60
+    while not stop.wait(interval):
+        data = store.current()
+        engine = (
+            f"rpm={data.rpm:.0f} coolant={data.coolant_c}C speed={data.speed_kmh}km/h battery={data.battery_v:.1f}V"
+            if data else "no ECU data"
+        )
+        log.info("Status: %s | %s | OBD clients connected: %d",
+                 engine, "low-power" if power.sleeping else "active", server.client_count)
 
 
 def main(argv=None) -> int:
@@ -137,6 +151,7 @@ def main(argv=None) -> int:
     signal.signal(signal.SIGINT, lambda *_: stop.set())
 
     poller.start()
+    threading.Thread(target=_log_status, args=(store, power, server, stop), name="status", daemon=True).start()
     try:
         server.serve_forever(stop)
     finally:

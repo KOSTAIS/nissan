@@ -176,6 +176,28 @@ All settings live in `/etc/consult2elm.conf` (see `consult2elm.conf.example`):
 
 ## 6. Troubleshooting
 
+### Debugging
+
+* **Debug output:** add `--debug`. It shows every Bluetooth setup command with
+  its output, every OBD request/reply (`<-` / `->`), and a status line every 5 s:
+  `sudo python3 -m consult2elm --simulate --debug`
+* **Bluetooth health check:** `sudo ./scripts/bt-diag.sh` prints `[OK]`/`[FAIL]`
+  for every requirement (rfkill, powered, discoverable, SPP record, pairing
+  agent, `--compat`) plus the related logs. Paste its output when asking for help.
+* At start-up the program logs one line with the adapter state, e.g.
+  `Bluetooth adapter B8:27:EB:..: alias=OBDII powered=yes discoverable=yes ...`,
+  and an ERROR line if the phone/tracker cannot see it.
+
+### Phone cannot find "OBDII"
+
+* **iPhones cannot be used for this test.** iOS does not show or pair classic
+  Bluetooth serial (SPP) devices, so Bluetooth ELM327 adapters never appear on
+  an iPhone. Use an Android phone (e.g. the "Car Scanner" app), or test over
+  TCP with `--tcp 35000`.
+* On Android, search from the phone's **Bluetooth settings** screen while the
+  program is running. Many OBD apps only list already paired devices.
+* Run `sudo ./scripts/bt-diag.sh` and fix every `[FAIL]` line.
+
 * **`ECU did not answer init`** (run with `-v`): the ignition is off, the cable
   is on the wrong port, or the port name is wrong. `ls /dev/serial/by-id/` shows
   the adapter.
