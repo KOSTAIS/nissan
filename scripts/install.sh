@@ -18,6 +18,14 @@ install -d /opt/consult2elm
 rm -rf /opt/consult2elm/consult2elm
 cp -r "$SRC/consult2elm" /opt/consult2elm/
 
+# "consult2elm" command usable from any directory, e.g.
+#   sudo consult2elm --simulate --debug
+cat > /usr/local/bin/consult2elm <<'CMD'
+#!/bin/sh
+cd /opt/consult2elm && exec python3 -m consult2elm "$@"
+CMD
+chmod 755 /usr/local/bin/consult2elm
+
 if [ ! -f /etc/consult2elm.conf ]; then
     install -m 644 "$SRC/consult2elm.conf.example" /etc/consult2elm.conf
 fi

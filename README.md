@@ -76,7 +76,7 @@ The ECU simulator lets you try everything on a desk:
 ```bash
 # On the Pi, over Bluetooth, with a phone app such as "Car Scanner" or "Torque":
 sudo systemctl stop consult2elm
-sudo python3 -m consult2elm --simulate
+sudo consult2elm --simulate            # works from any folder after install.sh
 
 # Or on any computer, over TCP (like a Wi-Fi ELM327):
 python3 -m consult2elm --simulate --tcp 35000 -c /dev/null
@@ -180,7 +180,7 @@ All settings live in `/etc/consult2elm.conf` (see `consult2elm.conf.example`):
 
 * **Debug output:** add `--debug`. It shows every Bluetooth setup command with
   its output, every OBD request/reply (`<-` / `->`), and a status line every 5 s:
-  `sudo python3 -m consult2elm --simulate --debug`
+  `sudo consult2elm --simulate --debug`
 * **Bluetooth health check:** `sudo ./scripts/bt-diag.sh` prints `[OK]`/`[FAIL]`
   for every requirement (rfkill, powered, discoverable, SPP record, pairing
   agent, `--compat`) plus the related logs. Paste its output when asking for help.
