@@ -30,6 +30,7 @@ class ElmServer:
         self._sock = None
         self.address = None
         self.client_count = 0
+        self.request_count = 0
         self._count_lock = threading.Lock()
 
     def listen(self) -> None:
@@ -68,6 +69,7 @@ class ElmServer:
         with self._count_lock:
             self.client_count += 1
         elm = Elm327(self._store)
+        seen = set()
         conn.settimeout(1.0)
         try:
             while not stop.is_set():
@@ -79,6 +81,12 @@ class ElmServer:
                     break
                 log.debug("<- %r", data)
                 reply = elm.feed(data)
+                self.request_count += data.count(b"\r")
+                command = data.strip().upper()
+                if command and command not in seen and len(seen) < 100:
+                    # Record what the tracker asks for even without --debug.
+                    seen.add(command)
+                    log.info("Client request %r -> reply %r", data, reply)
                 if reply:
                     log.debug("-> %r", reply)
                     conn.sendall(reply)

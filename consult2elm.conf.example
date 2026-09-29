@@ -40,3 +40,7 @@ shutdown_command = systemctl poweroff
 [general]
 simulate = no
 log_level = INFO
+# Log file written by the program itself (kept across reboots and power cuts).
+log_file = /var/log/consult2elm.log
+# Show the state on the green ACT LED (see README "Status LED").
+status_led = yes

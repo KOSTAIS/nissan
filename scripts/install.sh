@@ -55,6 +55,16 @@ ExecStart=
 ExecStart=$BTD --compat
 CONF
 
+# Raspberry Pi OS keeps the journal in RAM only; keep it on disk so logs
+# survive the power being cut in the car.
+install -d /etc/systemd/journald.conf.d /var/log/journal
+cat > /etc/systemd/journald.conf.d/consult2elm.conf <<CONF
+[Journal]
+Storage=persistent
+SystemMaxUse=50M
+CONF
+systemctl restart systemd-journald || true
+
 install -m 644 "$SRC/systemd/consult2elm.service" /etc/systemd/system/
 install -m 644 "$SRC/systemd/consult2elm-agent.service" /etc/systemd/system/
 systemctl daemon-reload

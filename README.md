@@ -156,6 +156,26 @@ Whichever option you pick:
   that, configuration changes need the overlay disabled first.
 * Boot takes about 20–30 s on Pi OS Lite. The tracker starts getting values after that.
 
+## Status LED and logs (no SSH needed in the car)
+
+The green ACT LED on the Pi shows the state; it repeats every 2 seconds:
+
+| LED | Meaning |
+|---|---|
+| 1 blink  | Program running, but no ECU data and no tracker connected |
+| 2 blinks | ECU data OK, tracker **not** connected (Bluetooth / tracker settings) |
+| 3 blinks | Tracker connected, **no** ECU data (ignition off, CONSULT cable/port) |
+| steady on | Everything OK: ECU data and tracker connected |
+| off / normal SD-card flicker | Program not running |
+
+Logs are written to `/var/log/consult2elm.log` (kept across power cuts; 5 × 2 MB).
+Each start is marked with `===== consult2elm ... starting =====`. The first time
+the tracker sends each command, it is logged with the reply, even without debug.
+
+```bash
+grep -E "starting|ECU|OBD client|Client request|Status|ERROR|WARNING" /var/log/consult2elm.log | tail -100
+```
+
 ## 5. Configuration reference
 
 All settings live in `/etc/consult2elm.conf` (see `consult2elm.conf.example`):
