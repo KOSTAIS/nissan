@@ -27,6 +27,9 @@ def configure_adapter(name: str, channel: int, discoverable: bool) -> None:
     systemd/consult2elm-agent.service. `sdptool add` needs bluetoothd to run
     with --compat, which scripts/install.sh sets up.
     """
+    # Raspberry Pi OS soft-blocks the radios until a Wi-Fi country is set;
+    # a blocked adapter makes "power on" fail with org.bluez.Error.Failed.
+    _run("rfkill", "unblock", "bluetooth")
     _run("bluetoothctl", "power", "on")
     _run("bluetoothctl", "system-alias", name)
     _run("bluetoothctl", "pairable", "on")

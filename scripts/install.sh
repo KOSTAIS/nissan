@@ -50,6 +50,7 @@ CONF
 install -m 644 "$SRC/systemd/consult2elm.service" /etc/systemd/system/
 install -m 644 "$SRC/systemd/consult2elm-agent.service" /etc/systemd/system/
 systemctl daemon-reload
+rfkill unblock bluetooth || true
 systemctl restart bluetooth
 systemctl enable --now consult2elm-agent.service consult2elm.service
 
