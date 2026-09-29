@@ -57,7 +57,21 @@ def _power_on() -> bool:
     return False
 
 
-def configure_adapter(name: str, channel: int, discoverable: bool) -> Dict[str, str]:
+def _spp_registered(channel: int) -> bool:
+    _, output = _run("sdptool", "browse", "local", quiet=True)
+    in_spp = False
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("Service Name:"):
+            in_spp = line.endswith("Serial Port")
+        elif in_spp and line == f"Channel: {channel}":
+            return True
+    return False
+
+
+def configure_adapter(
+    name: str, channel: int, discoverable: bool, device_class: str = "0x001F00"
+) -> Dict[str, str]:
     """Power on, set the visible name, advertise a Serial Port Profile record.
 
     Pairing itself (PIN) is handled by the bt-agent service, see
@@ -73,6 +87,11 @@ def configure_adapter(name: str, channel: int, discoverable: bool) -> Dict[str, 
         log.error("Could not power on Bluetooth. Check: rfkill list; sudo systemctl status bluetooth")
 
     _run("bluetoothctl", "system-alias", name)
+    # BlueZ defaults to class 0x000000 ("Miscellaneous"), which some Android
+    # phones leave out of their scan list. Real ELM327 dongles (HC-05 based)
+    # report 0x001F00 ("Uncategorized").
+    if device_class:
+        _run("hciconfig", "hci0", "class", device_class)
     _run("bluetoothctl", "pairable", "on")
     if discoverable:
         _run("bluetoothctl", "discoverable-timeout", "0")
@@ -89,7 +108,9 @@ def configure_adapter(name: str, channel: int, discoverable: bool) -> Dict[str, 
         _run("hciconfig", "hci0", "piscan")
         state = adapter_state()
 
-    if not _run("sdptool", "add", f"--channel={channel}", "SP")[0]:
+    if _spp_registered(channel):
+        log.debug("SPP record on channel %d already registered", channel)
+    elif not _run("sdptool", "add", f"--channel={channel}", "SP")[0]:
         log.warning("Could not register the SPP service record; is bluetoothd running with --compat? "
                     "(sudo ./scripts/install.sh sets that up)")
 

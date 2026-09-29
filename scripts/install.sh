@@ -62,7 +62,7 @@ systemctl daemon-reload
 # switches discoverability off itself when bt_discoverable = no).
 MAINCONF=/etc/bluetooth/main.conf
 if [ -f "$MAINCONF" ]; then
-    for kv in "DiscoverableTimeout = 0" "PairableTimeout = 0"; do
+    for kv in "DiscoverableTimeout = 0" "PairableTimeout = 0" "Class = 0x001F00"; do
         key="${kv%% *}"
         if grep -qE "^#?[[:space:]]*$key[[:space:]]*=" "$MAINCONF"; then
             sed -i -E "s/^#?[[:space:]]*$key[[:space:]]*=.*/$kv/" "$MAINCONF"

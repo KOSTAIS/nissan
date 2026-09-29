@@ -16,6 +16,9 @@ bt_channel = 1
 # Leave "yes" until the FMB130 has paired once, then set "no": the tracker
 # reconnects by MAC address and the Pi stops answering Bluetooth scans.
 bt_discoverable = yes
+# Bluetooth device class. 0x001F00 ("Uncategorized") is what real ELM327
+# dongles report; BlueZ's default makes the Pi invisible to some phones.
+bt_class = 0x001F00
 bt_setup = yes
 tcp_port = 35000
 

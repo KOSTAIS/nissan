@@ -32,6 +32,7 @@ class Config:
     bt_name: str = "OBDII"
     bt_channel: int = 1
     bt_discoverable: bool = True
+    bt_class: str = "0x001F00"
     bt_setup: bool = True
     tcp_port: int = 35000
     # [power]
@@ -47,7 +48,7 @@ class Config:
 
     SECTIONS = {
         "consult": ("serial_port", "baudrate", "stale_after"),
-        "obd": ("transport", "bt_name", "bt_channel", "bt_discoverable", "bt_setup", "tcp_port"),
+        "obd": ("transport", "bt_name", "bt_channel", "bt_discoverable", "bt_class", "bt_setup", "tcp_port"),
         "power": ("wake_on", "idle_after", "probe_interval", "cpu_saving", "shutdown_after", "shutdown_command"),
         "general": ("simulate", "log_level"),
     }
@@ -141,7 +142,7 @@ def main(argv=None) -> int:
         client = ConsultClient(cfg.serial_port, cfg.baudrate)
 
     if cfg.transport == "bluetooth" and cfg.bt_setup:
-        configure_adapter(cfg.bt_name, cfg.bt_channel, cfg.bt_discoverable)
+        configure_adapter(cfg.bt_name, cfg.bt_channel, cfg.bt_discoverable, cfg.bt_class)
 
     server = ElmServer(store, transport=cfg.transport, channel=cfg.bt_channel, tcp_port=cfg.tcp_port)
     poller = ConsultPoller(client, store, power, stale_after=cfg.stale_after)
