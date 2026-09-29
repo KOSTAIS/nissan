@@ -30,7 +30,7 @@ Use **Raspberry Pi OS Lite** (no desktop). It boots faster and draws less power.
 
 ```bash
 sudo apt install -y git
-git clone <this repo> && cd <repo>/consult2elm
+git clone https://github.com/KOSTAIS/nissan && cd nissan
 sudo ./scripts/install.sh 1234          # 1234 = Bluetooth PIN the FMB130 will use
 sudo ./scripts/power-tweaks.sh          # optional, see section 4
 sudo reboot
