@@ -25,8 +25,9 @@ tcp_port = 35000
 # none, so leave empty for "NO DATA" or enter the 17 characters from the car.
 vin =
 # Close a client's Bluetooth link after this many seconds without a request
-# (0 = never). The FMB130 can stop polling after "ATPC" while keeping the link
-# open; when the link drops it reconnects and starts polling again.
+# while engine data is live (0 = never). The FMB130 can stop polling after
+# "ATPC" while keeping the link open. With the ignition off it is normal for
+# the tracker to stay connected and silent, so that never triggers this.
 idle_disconnect = 120
 
 [power]

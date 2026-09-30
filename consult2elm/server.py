@@ -53,6 +53,7 @@ class ElmServer:
         self._tcp_addr = (tcp_host, tcp_port)
         self._vin = vin
         self._idle_disconnect = idle_disconnect
+        self._live_since: Optional[float] = None  # engine data live since (monotonic)
         self._sock = None
         self.address = None
         self.request_count = 0
@@ -118,35 +119,44 @@ class ElmServer:
             self._clients.append(client)
         for old in stale:
             log.info("OBD client %s reconnected, closing its previous connection", old.name)
-            self._close(old)
+            self._shutdown(old)
         return client
 
     def _check_idle(self) -> None:
+        """Warn about, and optionally drop, clients that stop polling.
+
+        Silence only counts while the engine data is live: with the ignition
+        off the FMB130 keeps the link open without asking anything, and that
+        idle link must be kept for when the ignition comes back on.
+        """
         now = time.monotonic()
+        if self._store.current() is None:
+            self._live_since = None
+            return
+        if self._live_since is None:
+            self._live_since = now
         with self._lock:
             clients = list(self._clients)
         for c in clients:
-            idle = c.idle_for(now)
+            idle = now - max(c.last_request or c.connected_at, self._live_since)
             if self._idle_disconnect and idle > self._idle_disconnect:
                 # The FMB130 sometimes ends its session with ATPC and then keeps
-                # the link open without asking anything. It reconnects and starts
-                # polling again when the link drops, so drop it.
-                log.warning("OBD client %s silent for %.0f s, closing the connection so it reconnects",
-                            c.name, idle)
+                # the link open without asking anything, even with the engine
+                # running. Dropping the link makes it reconnect and poll again.
+                log.warning("OBD client %s silent for %.0f s with the engine data live, "
+                            "closing the connection so it reconnects", c.name, idle)
                 c.last_request = now  # log once; the handler thread cleans up
-                self._close(c)
+                self._shutdown(c)
             elif not c.idle_warned and idle > IDLE_WARNING:
                 c.idle_warned = True
-                log.warning("OBD client %s connected but sent no request for %.0f s", c.name, idle)
+                log.warning("OBD client %s sent no request for %.0f s although engine data is live",
+                            c.name, idle)
 
     @staticmethod
-    def _close(client: ClientInfo) -> None:
+    def _shutdown(client: ClientInfo) -> None:
+        """Wake the client's handler thread; it closes the socket itself."""
         try:
             client.conn.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
-        try:
-            client.conn.close()
         except OSError:
             pass
 
@@ -184,7 +194,10 @@ class ElmServer:
         except OSError as exc:
             log.info("OBD client %s error: %s", peer, exc)
         finally:
-            self._close(client)
+            try:
+                conn.close()
+            except OSError:
+                pass
             with self._lock:
                 if client in self._clients:
                     self._clients.remove(client)
