@@ -24,6 +24,10 @@ tcp_port = 35000
 # Vehicle VIN reported to the tracker (OBD mode 09 PID 02). The 1997 ECU has
 # none, so leave empty for "NO DATA" or enter the 17 characters from the car.
 vin =
+# Close a client's Bluetooth link after this many seconds without a request
+# (0 = never). The FMB130 can stop polling after "ATPC" while keeping the link
+# open; when the link drops it reconnects and starts polling again.
+idle_disconnect = 120
 
 [power]
 # rpm = only a running engine counts as activity (ignition on, engine off -> sleep)

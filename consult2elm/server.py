@@ -43,6 +43,7 @@ class ElmServer:
         tcp_host: str = "0.0.0.0",
         tcp_port: int = 35000,
         vin: str = "",
+        idle_disconnect: float = 120.0,
     ):
         if transport not in ("bluetooth", "tcp"):
             raise ValueError("transport must be 'bluetooth' or 'tcp'")
@@ -51,6 +52,7 @@ class ElmServer:
         self._channel = channel
         self._tcp_addr = (tcp_host, tcp_port)
         self._vin = vin
+        self._idle_disconnect = idle_disconnect
         self._sock = None
         self.address = None
         self.request_count = 0
@@ -124,9 +126,18 @@ class ElmServer:
         with self._lock:
             clients = list(self._clients)
         for c in clients:
-            if not c.idle_warned and c.idle_for(now) > IDLE_WARNING:
+            idle = c.idle_for(now)
+            if self._idle_disconnect and idle > self._idle_disconnect:
+                # The FMB130 sometimes ends its session with ATPC and then keeps
+                # the link open without asking anything. It reconnects and starts
+                # polling again when the link drops, so drop it.
+                log.warning("OBD client %s silent for %.0f s, closing the connection so it reconnects",
+                            c.name, idle)
+                c.last_request = now  # log once; the handler thread cleans up
+                self._close(c)
+            elif not c.idle_warned and idle > IDLE_WARNING:
                 c.idle_warned = True
-                log.warning("OBD client %s connected but sent no request for %.0f s", c.name, c.idle_for(now))
+                log.warning("OBD client %s connected but sent no request for %.0f s", c.name, idle)
 
     @staticmethod
     def _close(client: ClientInfo) -> None:

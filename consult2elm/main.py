@@ -39,6 +39,7 @@ class Config:
     bt_setup: bool = True
     tcp_port: int = 35000
     vin: str = ""
+    idle_disconnect: float = 120.0
     # [power]
     wake_on: str = "rpm"
     idle_after: float = 120.0
@@ -54,7 +55,7 @@ class Config:
 
     SECTIONS = {
         "consult": ("serial_port", "baudrate", "stale_after"),
-        "obd": ("transport", "bt_name", "bt_channel", "bt_discoverable", "bt_class", "bt_setup", "tcp_port", "vin"),
+        "obd": ("transport", "bt_name", "bt_channel", "bt_discoverable", "bt_class", "bt_setup", "tcp_port", "vin", "idle_disconnect"),
         "power": ("wake_on", "idle_after", "probe_interval", "cpu_saving", "shutdown_after", "shutdown_command"),
         "general": ("simulate", "log_level", "log_file", "status_led"),
     }
@@ -169,7 +170,7 @@ def main(argv=None) -> int:
         configure_adapter(cfg.bt_name, cfg.bt_channel, cfg.bt_discoverable, cfg.bt_class)
 
     server = ElmServer(store, transport=cfg.transport, channel=cfg.bt_channel, tcp_port=cfg.tcp_port,
-                       vin=cfg.vin)
+                       vin=cfg.vin, idle_disconnect=cfg.idle_disconnect)
     poller = ConsultPoller(client, store, power, stale_after=cfg.stale_after)
 
     stop = threading.Event()
