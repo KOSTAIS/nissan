@@ -55,6 +55,7 @@ class PowerManager:
         self._saved_governor: Optional[str] = None
         self.sleeping = False
         self.shutdown_requested = False
+        self._hotplug_ok = True  # some kernels do not allow taking CPUs offline
 
     def is_active(self, data: Optional[EngineData]) -> bool:
         if data is None:
@@ -90,14 +91,18 @@ class PowerManager:
         if self.cpu_saving:
             self._saved_governor = self._read(f"{self._sysfs}/cpu0/cpufreq/scaling_governor")
             self._write(f"{self._sysfs}/cpu0/cpufreq/scaling_governor", "powersave")
-            for cpu in self._secondary_cpus():
-                self._write(f"{self._sysfs}/{cpu}/online", "0")
+            for cpu in self._secondary_cpus() if self._hotplug_ok else []:
+                if not self._write(f"{self._sysfs}/{cpu}/online", "0"):
+                    self._hotplug_ok = False
+                    log.info("This kernel does not allow taking CPU cores offline; only the "
+                             "powersave governor is used in low-power mode")
+                    break
 
     def _wake(self) -> None:
         log.info("Engine activity detected, leaving low-power mode")
         self.sleeping = False
         if self.cpu_saving:
-            for cpu in self._secondary_cpus():
+            for cpu in self._secondary_cpus() if self._hotplug_ok else []:
                 self._write(f"{self._sysfs}/{cpu}/online", "1")
             if self._saved_governor:
                 self._write(f"{self._sysfs}/cpu0/cpufreq/scaling_governor", self._saved_governor)
@@ -129,9 +134,11 @@ class PowerManager:
             return None
 
     @staticmethod
-    def _write(path: str, value: str) -> None:
+    def _write(path: str, value: str) -> bool:
         try:
             with open(path, "w") as f:
                 f.write(value)
+            return True
         except OSError as exc:
             log.debug("Cannot write %s: %s", path, exc)
+            return False

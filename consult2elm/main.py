@@ -38,6 +38,7 @@ class Config:
     bt_class: str = "0x001F00"
     bt_setup: bool = True
     tcp_port: int = 35000
+    vin: str = ""
     # [power]
     wake_on: str = "rpm"
     idle_after: float = 120.0
@@ -53,7 +54,7 @@ class Config:
 
     SECTIONS = {
         "consult": ("serial_port", "baudrate", "stale_after"),
-        "obd": ("transport", "bt_name", "bt_channel", "bt_discoverable", "bt_class", "bt_setup", "tcp_port"),
+        "obd": ("transport", "bt_name", "bt_channel", "bt_discoverable", "bt_class", "bt_setup", "tcp_port", "vin"),
         "power": ("wake_on", "idle_after", "probe_interval", "cpu_saving", "shutdown_after", "shutdown_command"),
         "general": ("simulate", "log_level", "log_file", "status_led"),
     }
@@ -115,9 +116,8 @@ def _log_status(store: DataStore, power: PowerManager, server: ElmServer, stop: 
             f"rpm={data.rpm:.0f} coolant={data.coolant_c}C speed={data.speed_kmh}km/h battery={data.battery_v:.1f}V"
             if data else "no ECU data"
         )
-        log.info("Status: %s | %s | OBD clients connected: %d | requests so far: %d",
-                 engine, "low-power" if power.sleeping else "active", server.client_count,
-                 server.request_count)
+        log.info("Status: %s | %s | OBD clients: %s",
+                 engine, "low-power" if power.sleeping else "active", server.client_summary())
 
 
 def _setup_logging(cfg: Config) -> None:
@@ -168,7 +168,8 @@ def main(argv=None) -> int:
     if cfg.transport == "bluetooth" and cfg.bt_setup:
         configure_adapter(cfg.bt_name, cfg.bt_channel, cfg.bt_discoverable, cfg.bt_class)
 
-    server = ElmServer(store, transport=cfg.transport, channel=cfg.bt_channel, tcp_port=cfg.tcp_port)
+    server = ElmServer(store, transport=cfg.transport, channel=cfg.bt_channel, tcp_port=cfg.tcp_port,
+                       vin=cfg.vin)
     poller = ConsultPoller(client, store, power, stale_after=cfg.stale_after)
 
     stop = threading.Event()

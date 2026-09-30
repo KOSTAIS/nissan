@@ -98,3 +98,20 @@ def test_command_split_across_packets():
     send(elm, "ATE0")
     assert elm.feed(b"01") == b""
     assert elm.feed(b"0D\r") == b"41 0D 40\r\r>"
+
+
+def test_vin_mode09():
+    store = DataStore()
+    elm = Elm327(store, vin="jn1bcan15u0012345")
+    send(elm, "ATE0")
+    lines = send(elm, "0902").split("\r")[:5]
+    assert lines[0] == "49 02 01 00 00 00 4A"      # 3 padding bytes + 'J'
+    data = b"".join(bytes.fromhex(l)[3:] for l in lines)
+    assert data[3:].decode() == "JN1BCAN15U0012345"
+    assert send(elm, "0900") == "49 00 40 00 00 00\r\r>"
+
+
+def test_no_vin_configured():
+    elm = make()
+    send(elm, "ATE0")
+    assert send(elm, "0902") == "NO DATA\r\r>"

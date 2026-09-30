@@ -21,6 +21,9 @@ bt_discoverable = yes
 bt_class = 0x001F00
 bt_setup = yes
 tcp_port = 35000
+# Vehicle VIN reported to the tracker (OBD mode 09 PID 02). The 1997 ECU has
+# none, so leave empty for "NO DATA" or enter the 17 characters from the car.
+vin =
 
 [power]
 # rpm = only a running engine counts as activity (ignition on, engine off -> sleep)

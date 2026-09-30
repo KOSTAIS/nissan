@@ -68,3 +68,18 @@ def test_shutdown_after_long_idle(tmp_path):
     pm.report(None)
     pm.report(None)
     assert calls == [["systemctl", "poweroff"]]
+
+
+def test_cpu_hotplug_not_allowed(tmp_path, caplog):
+    sysfs = fake_sysfs(tmp_path)
+    for n in (1, 2, 3):
+        (tmp_path / f"cpu{n}" / "online").chmod(0o444)
+    clock = Clock()
+    pm = PowerManager(idle_after=1, cpu_sysfs=sysfs, clock=clock)
+    clock.t = 2
+    if os.geteuid() == 0:
+        real_write = PowerManager._write
+        pm._write = lambda path, value: False if path.endswith("online") else real_write(path, value)
+    pm.report(None)
+    assert pm.sleeping and not pm._hotplug_ok
+    assert (tmp_path / "cpu0" / "cpufreq" / "scaling_governor").read_text() == "powersave"

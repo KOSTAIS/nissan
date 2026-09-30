@@ -5,11 +5,33 @@ from __future__ import annotations
 import logging
 import socket
 import threading
+import time
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 from .data import DataStore
 from .elm327 import Elm327
 
 log = logging.getLogger(__name__)
+
+IDLE_WARNING = 60.0  # seconds without a request before a client is reported as silent
+
+
+@dataclass(eq=False)
+class ClientInfo:
+    peer: tuple
+    conn: socket.socket
+    connected_at: float = field(default_factory=time.monotonic)
+    last_request: Optional[float] = None
+    requests: int = 0
+    idle_warned: bool = False
+
+    @property
+    def name(self) -> str:
+        return str(self.peer[0])
+
+    def idle_for(self, now: float) -> float:
+        return now - (self.last_request or self.connected_at)
 
 
 class ElmServer:
@@ -20,6 +42,7 @@ class ElmServer:
         channel: int = 1,
         tcp_host: str = "0.0.0.0",
         tcp_port: int = 35000,
+        vin: str = "",
     ):
         if transport not in ("bluetooth", "tcp"):
             raise ValueError("transport must be 'bluetooth' or 'tcp'")
@@ -27,11 +50,26 @@ class ElmServer:
         self._transport = transport
         self._channel = channel
         self._tcp_addr = (tcp_host, tcp_port)
+        self._vin = vin
         self._sock = None
         self.address = None
-        self.client_count = 0
         self.request_count = 0
-        self._count_lock = threading.Lock()
+        self._clients: List[ClientInfo] = []
+        self._lock = threading.Lock()
+
+    @property
+    def client_count(self) -> int:
+        with self._lock:
+            return len(self._clients)
+
+    def client_summary(self) -> str:
+        """e.g. '38:8A:21:46:B5:2E (412 req, last 0s ago)'."""
+        now = time.monotonic()
+        with self._lock:
+            parts = [
+                f"{c.name} ({c.requests} req, last {c.idle_for(now):.0f}s ago)" for c in self._clients
+            ]
+        return ", ".join(parts) or "none"
 
     def listen(self) -> None:
         if self._transport == "bluetooth":
@@ -54,21 +92,57 @@ class ElmServer:
             self.listen()
         try:
             while not stop.is_set():
+                self._check_idle()
                 try:
                     conn, peer = self._sock.accept()
                 except socket.timeout:
                     continue
+                client = self._register(conn, peer)
                 threading.Thread(
-                    target=self._handle, args=(conn, peer, stop), name=f"elm-{peer}", daemon=True
+                    target=self._handle, args=(client, stop), name=f"elm-{peer}", daemon=True
                 ).start()
         finally:
             self._sock.close()
 
-    def _handle(self, conn: socket.socket, peer, stop: threading.Event) -> None:
+    def _register(self, conn: socket.socket, peer) -> ClientInfo:
+        client = ClientInfo(peer=peer, conn=conn)
+        with self._lock:
+            stale = []
+            if self._transport == "bluetooth":
+                # A Bluetooth device has one link to us. If it connects again,
+                # the old connection is dead (e.g. tracker rebooted, link lost)
+                # even if the socket has not noticed yet.
+                stale = [c for c in self._clients if c.peer[0] == peer[0]]
+            self._clients.append(client)
+        for old in stale:
+            log.info("OBD client %s reconnected, closing its previous connection", old.name)
+            self._close(old)
+        return client
+
+    def _check_idle(self) -> None:
+        now = time.monotonic()
+        with self._lock:
+            clients = list(self._clients)
+        for c in clients:
+            if not c.idle_warned and c.idle_for(now) > IDLE_WARNING:
+                c.idle_warned = True
+                log.warning("OBD client %s connected but sent no request for %.0f s", c.name, c.idle_for(now))
+
+    @staticmethod
+    def _close(client: ClientInfo) -> None:
+        try:
+            client.conn.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            client.conn.close()
+        except OSError:
+            pass
+
+    def _handle(self, client: ClientInfo, stop: threading.Event) -> None:
+        conn, peer = client.conn, client.peer
         log.info("OBD client connected: %s", peer)
-        with self._count_lock:
-            self.client_count += 1
-        elm = Elm327(self._store)
+        elm = Elm327(self._store, vin=self._vin)
         seen = set()
         conn.settimeout(1.0)
         try:
@@ -81,7 +155,13 @@ class ElmServer:
                     break
                 log.debug("<- %r", data)
                 reply = elm.feed(data)
-                self.request_count += data.count(b"\r")
+                lines = data.count(b"\r")
+                if lines:
+                    client.last_request = time.monotonic()
+                    client.requests += lines
+                    client.idle_warned = False
+                    with self._lock:
+                        self.request_count += lines
                 command = data.strip().upper()
                 if command and command not in seen and len(seen) < 100:
                     # Record what the tracker asks for even without --debug.
@@ -93,7 +173,8 @@ class ElmServer:
         except OSError as exc:
             log.info("OBD client %s error: %s", peer, exc)
         finally:
-            conn.close()
-            with self._count_lock:
-                self.client_count -= 1
-            log.info("OBD client disconnected: %s", peer)
+            self._close(client)
+            with self._lock:
+                if client in self._clients:
+                    self._clients.remove(client)
+            log.info("OBD client disconnected: %s (%d requests)", peer, client.requests)

@@ -51,8 +51,10 @@ def supported_pids_mask(base: int, supported=SUPPORTED_PIDS) -> int:
 
 
 class Elm327:
-    def __init__(self, store: DataStore):
+    def __init__(self, store: DataStore, vin: str = ""):
         self._store = store
+        # A 1997 ECU has no VIN; one can be configured so the tracker reports it.
+        self._vin = vin.strip().upper()[:17].rjust(17, "0") if vin.strip() else ""
         self._line = bytearray()
         self._last_command = ""
         self.reset()
@@ -153,6 +155,8 @@ class Elm327:
             messages.append(bytes((mode + 0x40,)) + bytes(6))  # no trouble codes
         elif mode == 0x04 and engine is not None:
             messages.append(b"\x44")
+        elif mode == 0x09 and self._vin and len(pids) == 1:
+            messages.extend(self._mode09(pids[0]))
         return [self._format(m) for m in messages] or ["NO DATA"]
 
     def _mode01(self, pid: int, engine: Optional[EngineData]) -> Optional[bytes]:
@@ -173,6 +177,15 @@ class Elm327:
         if pid == PID_SPEED:
             return bytes((_clamp(engine.speed_kmh, 0, 255),))
         return None
+
+    def _mode09(self, pid: int) -> List[bytes]:
+        if pid == 0x00:
+            return [bytes((0x49, 0x00, 0x40, 0x00, 0x00, 0x00))]  # only PID 02 (VIN)
+        if pid == 0x02:
+            # ISO 9141-2 style: 5 frames "49 02 NN" + 4 bytes, VIN padded with 3 leading zeros.
+            data = bytes(3) + self._vin.encode("ascii", "replace")
+            return [bytes((0x49, 0x02, n + 1)) + data[n * 4:n * 4 + 4] for n in range(5)]
+        return []
 
     def _format(self, message: bytes) -> str:
         if self.headers:
